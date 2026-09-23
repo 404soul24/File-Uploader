@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+public/css/app.css
+uploads/*
+!uploads/.gitkeep
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store

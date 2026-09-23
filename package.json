@@ -1,0 +1,83 @@
+{
+  "name": "file-uploader",
+  "version": "1.0.0",
+  "description": "A secure file uploader with folders and expiring shares.",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "npm run build:css && npm run build:server",
+    "build:css": "tailwindcss -i ./src/styles/input.css -o ./public/css/app.css --minify",
+    "build:server": "tsc -p tsconfig.build.json",
+    "db:generate": "prisma generate",
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:css\"",
+    "dev:css": "tailwindcss -i ./src/styles/input.css -o ./public/css/app.css --watch",
+    "dev:server": "tsx watch src/server.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "express",
+    "file-uploader",
+    "prisma"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@quixo3/prisma-session-store": "^3.1.21",
+    "bcrypt": "^6.0.0",
+    "csrf-csrf": "^4.0.3",
+    "dotenv": "^18.0.3",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "multer": "^2.4.0",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/cli": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/ejs": "^3.1.5",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.19.0",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^26.6.2",
+    "@types/passport": "^1.0.17",
+    "@types/passport-local": "^1.0.38",
+    "@types/supertest": "^7.2.1",
+    "concurrently": "^10.0.5",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "postcss": "^8.5.28",
+    "prettier": "^3.9.9",
+    "prisma": "^6.19.3",
+    "supertest": "^7.3.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.1"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true,
+    "esbuild@0.28.2": true,
+    "@parcel/watcher@2.5.1": true,
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true
+  }
+}

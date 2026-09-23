@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" class="h-full bg-zinc-50 dark:bg-zinc-950">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Organize, upload, and share your files." />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body class="flex min-h-[100dvh] flex-col text-zinc-900 dark:text-zinc-100">
+    <header class="border-b border-zinc-200 dark:border-zinc-800">
+      <nav class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Primary navigation">
+        <a class="text-sm font-semibold tracking-tight" href="/">File Uploader</a>
+        <a class="rounded-md px-3 py-2 text-sm font-medium hover:bg-zinc-200 active:translate-y-px dark:hover:bg-zinc-800" href="/health">
+          Service status
+        </a>
+      </nav>
+    </header>
+    <main class="mx-auto flex w-full max-w-7xl flex-1 items-center px-4 py-16 sm:px-6 lg:px-8">
+      <section class="max-w-3xl">
+        <p class="mb-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">Project foundation ready</p>
+        <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">Your files, organized and under your control.</h1>
+        <p class="mt-6 max-w-2xl text-lg leading-8 text-zinc-600 dark:text-zinc-400">Authentication, folders, uploads, and expiring folder shares will be added in the next implementation steps.</p>
+      </section>
+    </main>
+    <footer class="border-t border-zinc-200 py-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+      <%= currentYear %> File Uploader
+    </footer>
+  </body>
+</html>
