@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique @db.VarChar(320)
+  passwordHash String        @db.VarChar(255)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  folders      Folder[]
+  files        File[]
+  folderShares FolderShare[] @relation("ShareCreator")
+
+  @@map("users")
+}
+
+model Folder {
+  id        String        @id @default(cuid())
+  name      String        @db.VarChar(255)
+  ownerId   String
+  parentId  String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  owner     User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parent    Folder?       @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Folder[]      @relation("FolderHierarchy")
+  files     File[]
+  shares    FolderShare[]
+
+  @@index([ownerId, parentId])
+  @@index([ownerId, name])
+  @@index([parentId])
+  @@map("folders")
+}
+
+model File {
+  id           String   @id @default(cuid())
+  originalName String   @db.VarChar(255)
+  storageKey   String   @unique @db.VarChar(512)
+  downloadUrl  String   @db.VarChar(2048)
+  mimeType     String   @db.VarChar(255)
+  byteSize     BigInt   @db.BigInt
+  uploadedAt   DateTime @default(now())
+  ownerId      String
+  folderId     String?
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  folder       Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, folderId])
+  @@index([ownerId, uploadedAt])
+  @@index([folderId])
+  @@map("files")
+}
+
+model FolderShare {
+  id           String    @id @default(cuid())
+  tokenHash    String    @unique @db.Char(64)
+  durationDays Int
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  folderId     String
+  createdById  String
+  folder       Folder    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  createdBy    User      @relation("ShareCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
+  @@index([createdById, createdAt])
+  @@index([expiresAt])
+  @@map("folder_shares")
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String   @db.Text
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("sessions")
+}

@@ -18,7 +18,7 @@ const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().max(65_535).default(3000),
   APP_URL: z.string().url().default('http://localhost:3000'),
-  DATABASE_URL: z.string().url().optional(),
+  DATABASE_URL: z.string().url(),
   SESSION_SECRET: z.string().min(32),
   UPLOAD_DIR: z.string().min(1).default('./uploads'),
   MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().max(1_024).default(25),
