@@ -1,19 +1,51 @@
+import type { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type ErrorRequestHandler } from 'express';
+import type { Store } from 'express-session';
 import helmet from 'helmet';
+import { generateCsrfToken } from './auth/csrf.js';
+import { loadCurrentUser } from './auth/middleware.js';
+import { createPassport } from './auth/passport.js';
+import { createPrismaSessionStore, createSessionMiddleware } from './auth/session.js';
+import { prisma } from './config/database.js';
 import { env } from './config/env.js';
+import { createAuthRouter } from './routes/auth.routes.js';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(sourceDirectory, '..');
 
-export function createApp() {
+interface AppOptions {
+  database?: PrismaClient;
+  sessionStore?: Store;
+}
+
+function getErrorStatus(error: unknown) {
+  if (typeof error !== 'object' || error === null) {
+    return 500;
+  }
+
+  const candidate = error as { status?: unknown; statusCode?: unknown };
+  const status = candidate.statusCode ?? candidate.status;
+
+  if (typeof status === 'number' && status >= 400 && status <= 599) {
+    return status;
+  }
+
+  return 500;
+}
+
+export function createApp(options: AppOptions = {}) {
   const app = express();
+  const database = options.database ?? prisma;
+  const sessionStore = options.sessionStore ?? createPrismaSessionStore(database);
+  const passport = createPassport(database);
 
   app.disable('x-powered-by');
   app.set('view engine', 'ejs');
   app.set('views', path.join(sourceDirectory, 'views'));
   app.locals.currentYear = new Date().getFullYear();
+  app.locals.sessionStore = sessionStore;
 
   if (env.TRUST_PROXY) {
     app.set('trust proxy', 1);
@@ -37,6 +69,15 @@ export function createApp() {
   app.use(express.urlencoded({ extended: false, limit: '32kb' }));
   app.use(express.json({ limit: '32kb' }));
   app.use(express.static(path.join(projectRoot, 'public')));
+  app.use(createSessionMiddleware(sessionStore));
+  app.use(passport.initialize());
+  app.use(passport.session());
+  app.use((request, response, next) => {
+    response.locals.csrfToken = (overwrite = false) => generateCsrfToken(request, overwrite);
+    next();
+  });
+  app.use(loadCurrentUser);
+  app.use('/auth', createAuthRouter({ database, passport }));
 
   app.get('/', (request, response) => {
     response.render('home', { title: 'File Uploader' });
@@ -46,7 +87,7 @@ export function createApp() {
     response.json({ status: 'ok' });
   });
 
-  app.use((request, response) => {
+  app.use((_request, response) => {
     response.status(404).render('error', {
       title: 'Page not found',
       status: 404,
@@ -54,17 +95,27 @@ export function createApp() {
     });
   });
 
-  const errorHandler: ErrorRequestHandler = (error, request, response, next) => {
+  const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
     if (response.headersSent) {
       next(error);
       return;
     }
 
-    console.error(error);
-    response.status(500).render('error', {
-      title: 'Something went wrong',
-      status: 500,
-      message: 'The server could not complete that request.',
+    const status = getErrorStatus(error);
+    const isClientError = status >= 400 && status < 500;
+    const message =
+      isClientError && error instanceof Error
+        ? error.message
+        : 'The server could not complete that request.';
+
+    if (!isClientError) {
+      console.error(error);
+    }
+
+    response.status(status).render('error', {
+      title: status === 403 ? 'Request blocked' : 'Something went wrong',
+      status,
+      message,
     });
   };
 

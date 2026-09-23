@@ -8,10 +8,10 @@
   </head>
   <body class="flex min-h-[100dvh] items-center justify-center px-4 text-zinc-900 dark:text-zinc-100">
     <main class="w-full max-w-lg text-center">
-      <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-400"><%= status %></p>
+      <p class="text-sm font-semibold <%= status === 403 || status === 429 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400' %>"><%= status %></p>
       <h1 class="mt-3 text-3xl font-semibold tracking-tight"><%= title %></h1>
       <p class="mt-4 text-zinc-600 dark:text-zinc-400"><%= message %></p>
-      <a class="mt-8 inline-flex rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-50 active:translate-y-px dark:bg-zinc-100 dark:text-zinc-900" href="/">Return home</a>
+      <a class="mt-8 inline-flex rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-50 hover:bg-zinc-800 active:translate-y-px dark:bg-zinc-100 dark:text-zinc-900" href="/">Return home</a>
     </main>
   </body>
 </html>
