@@ -11,6 +11,7 @@ import { createPrismaSessionStore, createSessionMiddleware } from './auth/sessio
 import { prisma } from './config/database.js';
 import { env } from './config/env.js';
 import { createAuthRouter } from './routes/auth.routes.js';
+import { createFolderRouter } from './routes/folder.routes.js';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(sourceDirectory, '..');
@@ -78,6 +79,7 @@ export function createApp(options: AppOptions = {}) {
   });
   app.use(loadCurrentUser);
   app.use('/auth', createAuthRouter({ database, passport }));
+  app.use('/folders', createFolderRouter({ database }));
 
   app.get('/', (request, response) => {
     response.render('home', { title: 'File Uploader' });

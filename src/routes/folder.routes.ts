@@ -1,0 +1,215 @@
+import type { PrismaClient } from '@prisma/client';
+import { Router, type Request, type Response } from 'express';
+import { csrfSynchronisedProtection } from '../auth/csrf.js';
+import { requireAuthentication } from '../auth/middleware.js';
+import {
+  createFolder,
+  deleteFolderRecursively,
+  FolderHierarchyError,
+  FolderNameConflictError,
+  FolderNotFoundError,
+  getFolderBreadcrumbs,
+  getFolderDeletePreview,
+  getOwnedFolder,
+  listChildFolders,
+  renameFolder,
+} from '../folders/service.js';
+import { createFolderSchema, folderIdSchema, renameFolderSchema } from '../folders/validation.js';
+
+interface FolderRouterOptions {
+  database: PrismaClient;
+}
+
+function renderFolderError(response: Response, error: unknown) {
+  if (error instanceof FolderNotFoundError) {
+    response.status(404).render('error', {
+      title: 'Folder not found',
+      status: 404,
+      message: 'The folder does not exist or is not available to your account.',
+    });
+    return true;
+  }
+
+  if (error instanceof FolderNameConflictError) {
+    response.status(409).render('error', {
+      title: 'Folder name unavailable',
+      status: 409,
+      message: error.message,
+    });
+    return true;
+  }
+
+  if (error instanceof FolderHierarchyError) {
+    response.status(409).render('error', {
+      title: 'Folder cannot be changed',
+      status: 409,
+      message: error.message,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+function parseFolderId(value: unknown) {
+  const parsed = folderIdSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+function getOwnerId(request: Request) {
+  if (!request.isAuthenticated() || !request.user) {
+    throw new Error('Authenticated folder routes require a user.');
+  }
+
+  return request.user.id;
+}
+
+export function createFolderRouter({ database }: FolderRouterOptions) {
+  const router = Router();
+
+  router.use(requireAuthentication);
+
+  const renderBrowsePage = async (response: Response, ownerId: string, folderId: string | null) => {
+    const folder = folderId ? await getOwnedFolder(database, ownerId, folderId) : null;
+    const breadcrumbs = folder ? await getFolderBreadcrumbs(database, ownerId, folder) : [];
+    const childFolders = await listChildFolders(database, ownerId, folder?.id ?? null);
+
+    response.render('folders/browse', {
+      title: folder ? folder.name : 'Your folders',
+      folder,
+      breadcrumbs,
+      childFolders,
+      files: [],
+    });
+  };
+
+  router.get('/', async (request, response) => {
+    await renderBrowsePage(response, getOwnerId(request), null);
+  });
+
+  router.post('/', csrfSynchronisedProtection, async (request, response) => {
+    const parsed = createFolderSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).render('error', {
+        title: 'Invalid folder name',
+        status: 400,
+        message: parsed.error.issues[0]?.message ?? 'Enter a valid folder name.',
+      });
+      return;
+    }
+
+    try {
+      const folder = await createFolder(
+        database,
+        getOwnerId(request),
+        parsed.data.name,
+        parsed.data.parentId,
+      );
+      response.redirect(303, `/folders/${encodeURIComponent(folder.id)}`);
+    } catch (error) {
+      if (!renderFolderError(response, error)) {
+        throw error;
+      }
+    }
+  });
+
+  router.get('/:folderId', async (request, response) => {
+    const folderId = parseFolderId(request.params.folderId);
+    if (!folderId) {
+      response.status(404).render('error', {
+        title: 'Folder not found',
+        status: 404,
+        message: 'The folder does not exist or is not available to your account.',
+      });
+      return;
+    }
+
+    try {
+      await renderBrowsePage(response, getOwnerId(request), folderId);
+    } catch (error) {
+      if (!renderFolderError(response, error)) {
+        throw error;
+      }
+    }
+  });
+
+  router.post('/:folderId/rename', csrfSynchronisedProtection, async (request, response) => {
+    const folderId = parseFolderId(request.params.folderId);
+    const parsed = renameFolderSchema.safeParse(request.body);
+
+    if (!folderId) {
+      response.status(404).render('error', {
+        title: 'Folder not found',
+        status: 404,
+        message: 'The folder does not exist or is not available to your account.',
+      });
+      return;
+    }
+
+    if (!parsed.success) {
+      response.status(400).render('error', {
+        title: 'Folder cannot be renamed',
+        status: 400,
+        message: parsed.error.issues[0]?.message ?? 'Enter a valid folder name.',
+      });
+      return;
+    }
+
+    try {
+      await renameFolder(database, getOwnerId(request), folderId, parsed.data.name);
+      response.redirect(303, `/folders/${encodeURIComponent(folderId)}`);
+    } catch (error) {
+      if (!renderFolderError(response, error)) {
+        throw error;
+      }
+    }
+  });
+
+  router.get('/:folderId/delete', async (request, response) => {
+    const folderId = parseFolderId(request.params.folderId);
+    if (!folderId) {
+      response.status(404).render('error', {
+        title: 'Folder not found',
+        status: 404,
+        message: 'The folder does not exist or is not available to your account.',
+      });
+      return;
+    }
+
+    try {
+      const preview = await getFolderDeletePreview(database, getOwnerId(request), folderId);
+      response.render('folders/confirm-delete', {
+        title: `Delete ${preview.folder.name}`,
+        folder: preview.folder,
+        descendantCount: preview.descendantCount,
+      });
+    } catch (error) {
+      if (!renderFolderError(response, error)) {
+        throw error;
+      }
+    }
+  });
+
+  router.post('/:folderId/delete', csrfSynchronisedProtection, async (request, response) => {
+    const folderId = parseFolderId(request.params.folderId);
+    if (!folderId) {
+      response.status(404).render('error', {
+        title: 'Folder not found',
+        status: 404,
+        message: 'The folder does not exist or is not available to your account.',
+      });
+      return;
+    }
+
+    try {
+      await deleteFolderRecursively(database, getOwnerId(request), folderId);
+      response.redirect(303, '/folders');
+    } catch (error) {
+      if (!renderFolderError(response, error)) {
+        throw error;
+      }
+    }
+  });
+
+  return router;
+}
