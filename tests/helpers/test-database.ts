@@ -51,6 +51,19 @@ interface FileWhere {
   folderId?: string | null;
 }
 
+interface CreateFileArgs {
+  data: {
+    id: string;
+    originalName: string;
+    storageKey: string;
+    downloadUrl: string;
+    mimeType: string;
+    byteSize: bigint;
+    ownerId: string;
+    folderId: string | null;
+  };
+}
+
 interface FindFirstFileArgs {
   where: FileWhere;
 }
@@ -176,6 +189,21 @@ export function createTestDatabase(
       return { count };
     },
   );
+  const createFile = vi.fn(async ({ data }: CreateFileArgs) => {
+    const file: TestFile = {
+      id: data.id,
+      originalName: data.originalName,
+      storageKey: data.storageKey,
+      downloadUrl: data.downloadUrl,
+      mimeType: data.mimeType,
+      byteSize: data.byteSize,
+      uploadedAt: new Date(),
+      ownerId: data.ownerId,
+      folderId: data.folderId,
+    };
+    files.push(file);
+    return file;
+  });
   const findFileFirst = vi.fn(async ({ where }: FindFirstFileArgs) => {
     return (
       files.find(
@@ -202,6 +230,7 @@ export function createTestDatabase(
       findUnique,
     },
     file: {
+      create: createFile,
       findFirst: findFileFirst,
       findMany: findManyFiles,
     },
@@ -219,6 +248,7 @@ export function createTestDatabase(
 
   return {
     create: createUser,
+    createFile,
     createFolder,
     database,
     deleteManyFolders,

@@ -24,7 +24,7 @@
               <div>
                 <h1 class="text-3xl font-semibold tracking-tight"><%= folder ? folder.name : 'Your folders' %></h1>
                 <% if (folder) { %>
-                  <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Opened <time datetime="<%= folder.updatedAt.toISOString() %>"><%= folder.updatedAt.toLocaleString() %></time></p>
+                  <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Updated <time datetime="<%= folder.updatedAt.toISOString() %>"><%= folder.updatedAt.toLocaleString() %></time></p>
                 <% } else { %>
                   <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400"><%= childFolders.length %> top-level <%= childFolders.length === 1 ? 'folder' : 'folders' %></p>
                 <% } %>
@@ -79,7 +79,7 @@
             <% } else { %>
               <div class="mt-4 rounded-lg border border-dashed border-zinc-300 p-8 text-center dark:border-zinc-700">
                 <h3 class="font-medium">No files yet</h3>
-                <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Uploads will appear here once enabled.</p>
+                <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Upload a file to get started.</p>
               </div>
             <% } %>
           </section>
@@ -93,7 +93,18 @@
               <label class="text-sm font-medium" for="new-folder-name">Name</label>
               <input class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 dark:border-zinc-700 dark:bg-zinc-950" id="new-folder-name" name="name" maxlength="120" required />
             </div>
-            <button class="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-50 hover:bg-zinc-800 active:translate-y-px dark:bg-zinc-100 dark:text-zinc-900" type="submit">Create folder</button>
+            <button class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-100 active:translate-y-px dark:border-zinc-700 dark:hover:bg-zinc-900" type="submit">Create folder</button>
+          </form>
+          <div class="my-6 border-t border-zinc-200 dark:border-zinc-800"></div>
+          <h2 class="font-semibold">Upload a file</h2>
+          <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400"><%= folder ? 'Add a file to this folder.' : 'Add a file to All folders.' %></p>
+          <form class="mt-4 grid gap-3" action="<%= folder ? `/uploads/folders/${encodeURIComponent(folder.id)}` : '/uploads' %>" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="<%= csrfToken() %>" />
+            <div class="grid gap-2">
+              <label class="text-sm font-medium" for="file">File</label>
+              <input class="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-200 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-zinc-900 hover:file:bg-zinc-300 dark:text-zinc-300 dark:file:bg-zinc-800 dark:file:text-zinc-50" id="file" name="file" type="file" required />
+            </div>
+            <button class="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-50 hover:bg-zinc-800 active:translate-y-px dark:bg-zinc-100 dark:text-zinc-900" type="submit">Upload</button>
           </form>
         </aside>
       </div>

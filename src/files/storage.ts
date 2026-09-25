@@ -1,4 +1,5 @@
-import { stat } from 'node:fs/promises';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { mkdirSync as createDirectory } from 'node:fs';
 import path from 'node:path';
 
 export class InvalidStorageKeyError extends Error {
@@ -39,6 +40,34 @@ export function resolveStoragePath(storageDirectory: string, storageKey: string)
   }
 
   return resolvedPath;
+}
+
+export function getTemporaryUploadDirectory(storageDirectory: string) {
+  return path.join(path.resolve(storageDirectory), '.tmp');
+}
+
+export function ensureStorageDirectories(storageDirectory: string) {
+  createDirectory(path.resolve(storageDirectory), { recursive: true, mode: 0o700 });
+  createDirectory(getTemporaryUploadDirectory(storageDirectory), { recursive: true, mode: 0o700 });
+}
+
+export function buildStorageKey(ownerId: string, folderId: string | null, fileId: string) {
+  return `${ownerId}/${folderId ?? 'root'}/${fileId}`;
+}
+
+export async function moveTemporaryFile(
+  storageDirectory: string,
+  temporaryPath: string,
+  storageKey: string,
+) {
+  const destinationPath = resolveStoragePath(storageDirectory, storageKey);
+  await mkdir(path.dirname(destinationPath), { recursive: true, mode: 0o700 });
+  await rename(temporaryPath, destinationPath);
+  return destinationPath;
+}
+
+export async function removeFile(filePath: string) {
+  await rm(filePath, { force: true });
 }
 
 export async function getStoredFileStats(storageDirectory: string, storageKey: string) {
