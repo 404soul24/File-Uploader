@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import { Router, type Request, type RequestHandler, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { createPassport } from '../auth/passport.js';
+import { env } from '../config/env.js';
 import { csrfSynchronisedProtection, generateCsrfToken } from '../auth/csrf.js';
 import { requireAuthentication, requireGuest } from '../auth/middleware.js';
 import { registerUser } from '../auth/service.js';
@@ -22,6 +23,7 @@ const registrationLimiter = rateLimit({
   limit: 5,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  skip: () => env.NODE_ENV === 'test',
   handler: (_request, response) => {
     response.status(429).render('error', {
       title: 'Too many attempts',
@@ -36,6 +38,7 @@ const loginLimiter = rateLimit({
   limit: 10,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  skip: () => env.NODE_ENV === 'test',
   handler: (_request, response) => {
     response.status(429).render('error', {
       title: 'Too many attempts',

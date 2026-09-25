@@ -12,6 +12,8 @@ import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { csrfSynchronisedProtection } from '../auth/csrf.js';
 import { getAuthenticatedUserId, requireAuthentication } from '../auth/middleware.js';
+import { env } from '../config/env.js';
+import { FileValidationError, validateUploadedFile } from '../files/policy.js';
 import { buildStorageKey, moveTemporaryFile, removeFile } from '../files/storage.js';
 import { createUploadMiddleware } from '../files/upload.js';
 import { FolderNotFoundError, getOwnedFolder } from '../folders/service.js';
@@ -41,6 +43,7 @@ const uploadLimiter = rateLimit({
   limit: 30,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  skip: () => env.NODE_ENV === 'test',
   handler: (_request, response) => {
     response.status(429).render('error', {
       title: 'Upload limit reached',
@@ -89,6 +92,7 @@ export function createUploadRouter({
     const uploadedFile = request.file;
 
     if (!uploadedFile) {
+      await cleanTemporaryFiles(request);
       response.status(400).render('error', {
         title: 'No file selected',
         status: 400,
@@ -99,6 +103,7 @@ export function createUploadRouter({
 
     const parsedName = originalNameSchema.safeParse(uploadedFile.originalname);
     if (!parsedName.success) {
+      await cleanTemporaryFiles(request);
       response.status(400).render('error', {
         title: 'Invalid file name',
         status: 400,
@@ -114,6 +119,24 @@ export function createUploadRouter({
 
     const fileId = randomUUID();
     const storageKey = buildStorageKey(ownerId, folderId, fileId);
+    let mimeType: string;
+
+    try {
+      mimeType = await validateUploadedFile(uploadedFile.path, parsedName.data);
+    } catch (error) {
+      if (error instanceof FileValidationError) {
+        await cleanTemporaryFiles(request);
+        response.status(error.reason === 'empty' ? 400 : 415).render('error', {
+          title: error.reason === 'empty' ? 'Empty file' : 'File type not allowed',
+          status: error.reason === 'empty' ? 400 : 415,
+          message: error.message,
+        });
+        return;
+      }
+
+      throw error;
+    }
+
     const destinationPath = await moveTemporaryFile(
       storageDirectory,
       uploadedFile.path,
@@ -127,7 +150,7 @@ export function createUploadRouter({
           originalName: parsedName.data,
           storageKey,
           downloadUrl: `/files/${encodeURIComponent(fileId)}/download`,
-          mimeType: uploadedFile.mimetype.toLowerCase().slice(0, 255) || 'application/octet-stream',
+          mimeType,
           byteSize: BigInt(uploadedFile.size),
           ownerId,
           folderId,

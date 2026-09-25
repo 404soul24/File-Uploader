@@ -102,7 +102,8 @@
             <input type="hidden" name="_csrf" value="<%= csrfToken() %>" />
             <div class="grid gap-2">
               <label class="text-sm font-medium" for="file">File</label>
-              <input class="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-200 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-zinc-900 hover:file:bg-zinc-300 dark:text-zinc-300 dark:file:bg-zinc-800 dark:file:text-zinc-50" id="file" name="file" type="file" required />
+              <input class="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-200 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-zinc-900 hover:file:bg-zinc-300 dark:text-zinc-300 dark:file:bg-zinc-800 dark:file:text-zinc-50" id="file" name="file" type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.avif,.bmp,.tif,.tiff,.heic,.heif,.pdf,.rtf,.docx,.xlsx,.pptx,.odt,.ods,.odp,.zip,.gz,.tgz,.tar,.7z,.rar,.mp3,.wav,.flac,.ogg,.m4a,.aac,.mp4,.webm,.mov,.avi,.mkv,.txt,.md,.markdown,.csv,.json,.log,.yaml,.yml" required />
+              <p class="text-sm text-zinc-600 dark:text-zinc-400">Maximum <%= maxUploadSizeMb %> MB per file. Contents are checked before storage.</p>
             </div>
             <button class="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-50 hover:bg-zinc-800 active:translate-y-px dark:bg-zinc-100 dark:text-zinc-900" type="submit">Upload</button>
           </form>

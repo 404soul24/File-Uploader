@@ -13,6 +13,10 @@ import { createTestDatabase, type TestFolder, type TestUser } from './helpers/te
 const validPassword = 'correcthorse1';
 const maxUploadSizeBytes = 1024 * 1024;
 const ownerId = 'owner-user';
+const onePixelPng = Buffer.from(
+  '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+  'hex',
+);
 
 function createUsers(passwordHash: string): TestUser[] {
   return [
@@ -196,6 +200,98 @@ describe('file uploads', () => {
 
     expect(response.status).toBe(303);
     expect(response.headers.location).toBe('/auth/login');
+    expect(testDatabase.files).toHaveLength(0);
+  });
+
+  it('stores the detected MIME type instead of trusting the client', async () => {
+    const agent = await signIn();
+    const token = await getCsrfToken(agent, '/folders');
+    const response = await agent
+      .post('/uploads')
+      .field('_csrf', token)
+      .attach('file', onePixelPng, { filename: 'pixel.png', contentType: 'text/plain' });
+
+    expect(response.status).toBe(303);
+    expect(testDatabase.files[0]?.mimeType).toBe('image/png');
+  });
+
+  it('accepts an allowed PDF and verifies its signature', async () => {
+    const agent = await signIn();
+    const token = await getCsrfToken(agent, '/folders');
+
+    const response = await agent
+      .post('/uploads')
+      .field('_csrf', token)
+      .attach('file', Buffer.from('%PDF-1.7\n1 0 obj\n'), {
+        filename: 'document.pdf',
+        contentType: 'application/octet-stream',
+      });
+
+    expect(response.status).toBe(303);
+    expect(testDatabase.files[0]?.mimeType).toBe('application/pdf');
+  });
+
+  it('rejects an executable disguised with a text extension', async () => {
+    const agent = await signIn();
+    const token = await getCsrfToken(agent, '/folders');
+    const executable = Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00]);
+
+    const response = await agent
+      .post('/uploads')
+      .field('_csrf', token)
+      .attach('file', executable, { filename: 'notes.txt', contentType: 'text/plain' });
+
+    expect(response.status).toBe(415);
+    expect(response.text).toContain('This file type is not allowed.');
+    expect(testDatabase.files).toHaveLength(0);
+    await expect(readdir(path.join(storageDirectory, '.tmp'))).resolves.toEqual([]);
+  });
+
+  it('rejects image content that does not match a text extension', async () => {
+    const agent = await signIn();
+    const token = await getCsrfToken(agent, '/folders');
+    const response = await agent
+      .post('/uploads')
+      .field('_csrf', token)
+      .attach('file', onePixelPng, { filename: 'notes.txt', contentType: 'text/plain' });
+
+    expect(response.status).toBe(415);
+    expect(response.text).toContain('The file contents do not match the file extension.');
+  });
+
+  it('rejects markup disguised as plain text', async () => {
+    const agent = await signIn();
+    const token = await getCsrfToken(agent, '/folders');
+
+    const response = await agent
+      .post('/uploads')
+      .field('_csrf', token)
+      .attach('file', Buffer.from('<!doctype html><html><body>hello</body></html>'), {
+        filename: 'page.txt',
+        contentType: 'text/plain',
+      });
+
+    expect(response.status).toBe(415);
+    expect(response.text).toContain('This text file is not allowed.');
+  });
+
+  it('rejects blocked extensions and empty files', async () => {
+    const agent = await signIn();
+    const token = await getCsrfToken(agent, '/folders');
+
+    const blockedExtension = await agent
+      .post('/uploads')
+      .field('_csrf', token)
+      .attach('file', Buffer.from('hello'), { filename: 'program.exe', contentType: 'text/plain' });
+    const empty = await agent
+      .post('/uploads')
+      .field('_csrf', token)
+      .attach('file', Buffer.alloc(0), { filename: 'empty.txt', contentType: 'text/plain' });
+
+    expect(blockedExtension.status).toBe(415);
+    expect(blockedExtension.text).toContain('This file extension is not allowed.');
+    expect(empty.status).toBe(400);
+    expect(empty.text).toContain('Empty files cannot be uploaded.');
     expect(testDatabase.files).toHaveLength(0);
   });
 });

@@ -54,6 +54,7 @@ export function createApp(options: AppOptions = {}) {
   app.set('view engine', 'ejs');
   app.set('views', path.join(sourceDirectory, 'views'));
   app.locals.currentYear = new Date().getFullYear();
+  app.locals.maxUploadSizeMb = maxUploadSizeBytes / (1024 * 1024);
   app.locals.sessionStore = sessionStore;
 
   if (env.TRUST_PROXY) {
