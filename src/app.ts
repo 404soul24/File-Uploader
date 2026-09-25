@@ -90,7 +90,7 @@ export function createApp(options: AppOptions = {}) {
   });
   app.use(loadCurrentUser);
   app.use('/auth', createAuthRouter({ database, passport }));
-  app.use('/folders', createFolderRouter({ database }));
+  app.use('/folders', createFolderRouter({ database, storageDirectory: uploadDirectory }));
   app.use(
     '/uploads',
     createUploadRouter({

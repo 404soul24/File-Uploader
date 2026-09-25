@@ -181,10 +181,18 @@ export function deleteFolderRecursively(database: PrismaClient, ownerId: string,
       await getOwnedFolder(transaction, ownerId, folderId);
       const descendants = await getDescendantFolders(transaction, ownerId, folderId);
       const folderIds = [folderId, ...descendants.map((folder) => folder.id)];
-
-      return transaction.folder.deleteMany({
+      const files = await transaction.file.findMany({
+        where: { ownerId, folderId: { in: folderIds } },
+        select: { storageKey: true },
+      });
+      const deletion = await transaction.folder.deleteMany({
         where: { id: { in: folderIds }, ownerId },
       });
+
+      return {
+        count: deletion.count,
+        storageKeys: files.map((file) => file.storageKey),
+      };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );

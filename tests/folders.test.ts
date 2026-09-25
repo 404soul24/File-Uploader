@@ -1,8 +1,11 @@
 import { hash } from 'bcrypt';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { Express } from 'express';
 import { MemoryStore } from 'express-session';
 import request from 'supertest';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { createTestDatabase, type TestFolder, type TestUser } from './helpers/test-database.js';
 
@@ -60,18 +63,25 @@ function createOtherUsersFolder(): TestFolder {
 describe('folders', () => {
   let app: Express;
   let passwordHash: string;
+  let storageDirectory: string;
   let testDatabase: ReturnType<typeof createTestDatabase>;
 
   beforeAll(async () => {
     passwordHash = await hash(validPassword, 12);
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    storageDirectory = await mkdtemp(path.join(tmpdir(), 'file-uploader-folders-'));
     testDatabase = createTestDatabase(createUsers(passwordHash), [createOtherUsersFolder()]);
     app = createApp({
       database: testDatabase.database,
       sessionStore: new MemoryStore(),
+      uploadDirectory: storageDirectory,
     });
+  });
+
+  afterEach(async () => {
+    await rm(storageDirectory, { recursive: true, force: true });
   });
 
   async function signIn() {
@@ -219,6 +229,37 @@ describe('folders', () => {
       .type('form')
       .send({ _csrf: grandchildToken, name: 'Logs', parentId: 'folder-2' });
 
+    const rootFilePath = path.join(storageDirectory, 'owner-user', 'folder-1', 'root.txt');
+    const nestedFilePath = path.join(storageDirectory, 'owner-user', 'folder-2', 'nested.txt');
+    await mkdir(path.dirname(rootFilePath), { recursive: true });
+    await mkdir(path.dirname(nestedFilePath), { recursive: true });
+    await writeFile(rootFilePath, 'root');
+    await writeFile(nestedFilePath, 'nested');
+    await testDatabase.createFile({
+      data: {
+        id: 'file-1',
+        originalName: 'root.txt',
+        storageKey: 'owner-user/folder-1/root.txt',
+        downloadUrl: '/files/file-1/download',
+        mimeType: 'text/plain',
+        byteSize: 4n,
+        ownerId,
+        folderId: 'folder-1',
+      },
+    });
+    await testDatabase.createFile({
+      data: {
+        id: 'file-2',
+        originalName: 'nested.txt',
+        storageKey: 'owner-user/folder-2/nested.txt',
+        downloadUrl: '/files/file-2/download',
+        mimeType: 'text/plain',
+        byteSize: 6n,
+        ownerId,
+        folderId: 'folder-2',
+      },
+    });
+
     const confirmation = await agent.get('/folders/folder-1/delete');
     expect(confirmation.text).toContain('nested folders');
 
@@ -230,6 +271,9 @@ describe('folders', () => {
 
     expect(deleted.status).toBe(303);
     expect(testDatabase.folders.map((folder) => folder.id)).toEqual(['other-folder']);
+    expect(testDatabase.files).toHaveLength(0);
+    await expect(readFile(rootFilePath, 'utf8')).rejects.toThrow();
+    await expect(readFile(nestedFilePath, 'utf8')).rejects.toThrow();
   });
 
   it('rejects unsupported names and missing CSRF tokens', async () => {

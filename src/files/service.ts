@@ -25,3 +25,8 @@ export function listFolderFiles(database: PrismaClient, ownerId: string, folderI
     orderBy: { uploadedAt: 'desc' },
   });
 }
+
+export async function deleteOwnedFile(database: PrismaClient, ownerId: string, fileId: string) {
+  await getOwnedFile(database, ownerId, fileId);
+  return database.file.delete({ where: { id: fileId } });
+}

@@ -1,12 +1,14 @@
 import type { PrismaClient } from '@prisma/client';
 import { Router, type Response } from 'express';
+import { csrfSynchronisedProtection } from '../auth/csrf.js';
 import { getAuthenticatedUserId, requireAuthentication } from '../auth/middleware.js';
 import { sendFileDownload } from '../files/download.js';
 import { formatBytes } from '../files/format.js';
-import { FileNotFoundError, getOwnedFile } from '../files/service.js';
+import { deleteOwnedFile, FileNotFoundError, getOwnedFile } from '../files/service.js';
 import {
   getStoredFileStats,
   InvalidStorageKeyError,
+  removeStoredFiles,
   resolveStoragePath,
   StoredFileMissingError,
 } from '../files/storage.js';
@@ -49,6 +51,60 @@ export function createFileRouter({ database, storageDirectory }: FileRouterOptio
   const router = Router();
 
   router.use(requireAuthentication);
+
+  router.get('/:fileId/delete', async (request, response) => {
+    const fileId = parseFileId(request.params.fileId);
+    if (!fileId) {
+      response.status(404).render('error', {
+        title: 'File not found',
+        status: 404,
+        message: 'The file does not exist or is not available to your account.',
+      });
+      return;
+    }
+
+    try {
+      const file = await getOwnedFile(database, getAuthenticatedUserId(request), fileId);
+      response.render('files/confirm-delete', {
+        title: `Delete ${file.originalName}`,
+        file,
+      });
+    } catch (error) {
+      if (!renderFileError(response, error)) {
+        throw error;
+      }
+    }
+  });
+
+  router.post('/:fileId/delete', csrfSynchronisedProtection, async (request, response) => {
+    const fileId = parseFileId(request.params.fileId);
+    if (!fileId) {
+      response.status(404).render('error', {
+        title: 'File not found',
+        status: 404,
+        message: 'The file does not exist or is not available to your account.',
+      });
+      return;
+    }
+
+    try {
+      const file = await deleteOwnedFile(database, getAuthenticatedUserId(request), fileId);
+      const removal = await removeStoredFiles(storageDirectory, [file.storageKey]);
+
+      if (removal.failedKeys.length > 0) {
+        console.error('Storage cleanup failed for deleted file records.', removal.failedKeys);
+      }
+
+      response.redirect(
+        303,
+        file.folderId ? `/folders/${encodeURIComponent(file.folderId)}` : '/folders',
+      );
+    } catch (error) {
+      if (!renderFileError(response, error)) {
+        throw error;
+      }
+    }
+  });
 
   router.get('/:fileId', async (request, response) => {
     const fileId = parseFileId(request.params.fileId);

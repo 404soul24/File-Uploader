@@ -81,7 +81,7 @@ interface FindFirstFileArgs {
 }
 
 interface FindManyFileArgs {
-  where: Omit<FileWhere, 'id'>;
+  where?: Omit<FileWhere, 'id'>;
   orderBy?: { uploadedAt?: 'desc' };
 }
 
@@ -222,8 +222,18 @@ export function createTestDatabase(
         (folder) => !(ids.has(folder.id) && folder.ownerId === where.ownerId),
       );
       const count = folders.length - remaining.length;
+      const removedFolderIds = new Set(
+        folders
+          .filter((folder) => ids.has(folder.id) && folder.ownerId === where.ownerId)
+          .map((folder) => folder.id),
+      );
       folders.length = 0;
       folders.push(...remaining);
+      const remainingFiles = files.filter(
+        (file) => !file.folderId || !removedFolderIds.has(file.folderId),
+      );
+      files.length = 0;
+      files.push(...remainingFiles);
       return { count };
     },
   );
@@ -242,14 +252,20 @@ export function createTestDatabase(
     files.push(file);
     return file;
   });
+  const deleteFile = vi.fn(async ({ where }: { where: { id: string } }) => {
+    const index = files.findIndex((file) => file.id === where.id);
+    if (index < 0) {
+      throw new Error('File not found');
+    }
+
+    return files.splice(index, 1)[0];
+  });
   const findFileFirst = vi.fn(async ({ where }: FindFirstFileArgs) => {
     return files.find((file) => matchesFile(file, where)) ?? null;
   });
   const findManyFiles = vi.fn(async ({ where }: FindManyFileArgs) => {
-    const matches = files.filter((file) => matchesFile(file, where));
-    return where.folderId === undefined && where.ownerId
-      ? matches.sort((left, right) => right.uploadedAt.getTime() - left.uploadedAt.getTime())
-      : matches;
+    const matches = where ? files.filter((file) => matchesFile(file, where)) : [...files];
+    return matches.sort((left, right) => right.uploadedAt.getTime() - left.uploadedAt.getTime());
   });
   const createFolderShare = vi.fn(
     async ({
@@ -334,6 +350,7 @@ export function createTestDatabase(
     },
     file: {
       create: createFile,
+      delete: deleteFile,
       findFirst: findFileFirst,
       findMany: findManyFiles,
     },
@@ -355,6 +372,7 @@ export function createTestDatabase(
     createFolder,
     createFolderShare,
     database,
+    deleteFile,
     deleteManyFolders,
     findUnique,
     files,

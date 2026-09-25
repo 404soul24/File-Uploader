@@ -1,4 +1,4 @@
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, rename, rm, rmdir, stat } from 'node:fs/promises';
 import { mkdirSync as createDirectory } from 'node:fs';
 import path from 'node:path';
 
@@ -68,6 +68,42 @@ export async function moveTemporaryFile(
 
 export async function removeFile(filePath: string) {
   await rm(filePath, { force: true });
+}
+
+async function removeDirectoryIfEmpty(directory: string) {
+  try {
+    await rmdir(directory);
+  } catch {
+    return false;
+  }
+
+  return true;
+}
+
+export async function removeStoredFiles(storageDirectory: string, storageKeys: string[]) {
+  const uniqueKeys = [...new Set(storageKeys)];
+  const directories = new Set<string>();
+  const results = await Promise.allSettled(
+    uniqueKeys.map(async (storageKey) => {
+      const filePath = resolveStoragePath(storageDirectory, storageKey);
+      directories.add(path.dirname(filePath));
+      await removeFile(filePath);
+    }),
+  );
+  const failedKeys = uniqueKeys.filter((_, index) => results[index]?.status === 'rejected');
+  const baseDirectory = path.resolve(storageDirectory);
+  const sortedDirectories = [...directories].sort((left, right) => right.length - left.length);
+
+  for (const directory of sortedDirectories) {
+    if (directory !== baseDirectory && directory.startsWith(baseDirectory)) {
+      await removeDirectoryIfEmpty(directory);
+    }
+  }
+
+  return {
+    removedCount: results.length - failedKeys.length,
+    failedKeys,
+  };
 }
 
 export async function getStoredFileStats(storageDirectory: string, storageKey: string) {

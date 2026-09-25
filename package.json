@@ -20,6 +20,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "start": "node dist/server.js",
+    "storage:cleanup": "tsx src/scripts/cleanup-storage.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

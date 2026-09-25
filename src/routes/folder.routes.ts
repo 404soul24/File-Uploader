@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { Router, type Response } from 'express';
 import { csrfSynchronisedProtection } from '../auth/csrf.js';
 import { getAuthenticatedUserId, requireAuthentication } from '../auth/middleware.js';
+import { removeStoredFiles } from '../files/storage.js';
 import { formatBytes } from '../files/format.js';
 import { listFolderFiles } from '../files/service.js';
 import {
@@ -20,6 +21,7 @@ import { createFolderSchema, folderIdSchema, renameFolderSchema } from '../folde
 
 interface FolderRouterOptions {
   database: PrismaClient;
+  storageDirectory: string;
 }
 
 function renderFolderError(response: Response, error: unknown) {
@@ -58,7 +60,7 @@ function parseFolderId(value: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
-export function createFolderRouter({ database }: FolderRouterOptions) {
+export function createFolderRouter({ database, storageDirectory }: FolderRouterOptions) {
   const router = Router();
 
   router.use(requireAuthentication);
@@ -204,7 +206,17 @@ export function createFolderRouter({ database }: FolderRouterOptions) {
     }
 
     try {
-      await deleteFolderRecursively(database, getAuthenticatedUserId(request), folderId);
+      const result = await deleteFolderRecursively(
+        database,
+        getAuthenticatedUserId(request),
+        folderId,
+      );
+      const removal = await removeStoredFiles(storageDirectory, result.storageKeys);
+
+      if (removal.failedKeys.length > 0) {
+        console.error('Storage cleanup failed for deleted folders.', removal.failedKeys);
+      }
+
       response.redirect(303, '/folders');
     } catch (error) {
       if (!renderFolderError(response, error)) {

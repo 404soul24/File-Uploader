@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" class="h-full bg-zinc-50 dark:bg-zinc-950">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body class="flex min-h-[100dvh] flex-col text-zinc-900 dark:text-zinc-100">
+    <%- include('../partials/header') %>
+    <main class="mx-auto flex w-full max-w-xl flex-1 items-center px-4 py-12 sm:px-6">
+      <section class="w-full rounded-xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
+        <p class="text-sm font-semibold text-red-700 dark:text-red-400">Permanent action</p>
+        <h1 class="mt-2 break-all text-2xl font-semibold tracking-tight">Delete <%= file.originalName %>?</h1>
+        <p class="mt-4 leading-7 text-zinc-600 dark:text-zinc-400">The file record and stored copy are removed. Shared links that include this file stop working immediately.</p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <form action="/files/<%= encodeURIComponent(file.id) %>/delete" method="post">
+            <input type="hidden" name="_csrf" value="<%= csrfToken() %>" />
+            <button class="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 active:translate-y-px dark:bg-red-600 dark:hover:bg-red-500" type="submit">Delete file</button>
+          </form>
+          <a class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-100 active:translate-y-px dark:border-zinc-700 dark:hover:bg-zinc-900" href="/files/<%= encodeURIComponent(file.id) %>">Cancel</a>
+        </div>
+      </section>
+    </main>
+    <%- include('../partials/footer') %>
+  </body>
+</html>

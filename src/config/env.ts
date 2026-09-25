@@ -21,6 +21,7 @@ const environmentSchema = z.object({
   DATABASE_URL: z.string().url(),
   SESSION_SECRET: z.string().min(32),
   UPLOAD_DIR: z.string().min(1).default('./uploads'),
+  TEMP_UPLOAD_TTL_MINUTES: z.coerce.number().int().positive().max(10_080).default(60),
   MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().max(1_024).default(25),
   ALLOWED_MIME_TYPES: z
     .string()

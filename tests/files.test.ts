@@ -1,5 +1,5 @@
 import { hash } from 'bcrypt';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Express } from 'express';
@@ -7,6 +7,7 @@ import { MemoryStore } from 'express-session';
 import request from 'supertest';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
+import { resolveStoragePath } from '../src/files/storage.js';
 import {
   createTestDatabase,
   type TestFile,
@@ -113,6 +114,7 @@ describe('file details and downloads', () => {
   let app: Express;
   let passwordHash: string;
   let storageDirectory: string;
+  let testDatabase: ReturnType<typeof createTestDatabase>;
 
   beforeAll(async () => {
     passwordHash = await hash(validPassword, 12);
@@ -122,11 +124,7 @@ describe('file details and downloads', () => {
     storageDirectory = await mkdtemp(path.join(tmpdir(), 'file-uploader-'));
     await mkdir(path.join(storageDirectory, 'owner-user'), { recursive: true });
     await writeFile(path.join(storageDirectory, 'owner-user', 'notes.txt'), 'hello');
-    const testDatabase = createTestDatabase(
-      createUsers(passwordHash),
-      [createFolder()],
-      createFiles(),
-    );
+    testDatabase = createTestDatabase(createUsers(passwordHash), [createFolder()], createFiles());
     app = createApp({
       database: testDatabase.database,
       sessionStore: new MemoryStore(),
@@ -207,5 +205,21 @@ describe('file details and downloads', () => {
     const response = await agent.get('/files/file-4/download');
 
     expect(response.status).toBe(404);
+  });
+
+  it('deletes an owned file from the database and filesystem', async () => {
+    const agent = await signIn();
+    const confirmation = await agent.get('/files/file-1/delete');
+    const token = confirmation.text.match(/name="_csrf" value="([^"]+)"/)?.[1];
+    expect(token).toBeTruthy();
+
+    const response = await agent.post('/files/file-1/delete').type('form').send({ _csrf: token });
+    const storedPath = resolveStoragePath(storageDirectory, 'owner-user/notes.txt');
+
+    expect(response.status).toBe(303);
+    expect(response.headers.location).toBe('/folders/folder-1');
+    expect(confirmation.text).toContain('Delete notes.txt?');
+    await expect(readFile(storedPath, 'utf8')).rejects.toThrow();
+    expect(testDatabase.files.some((file) => file.id === 'file-1')).toBe(false);
   });
 });
