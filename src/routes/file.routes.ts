@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { Router, type Response } from 'express';
 import { getAuthenticatedUserId, requireAuthentication } from '../auth/middleware.js';
+import { sendFileDownload } from '../files/download.js';
 import { formatBytes } from '../files/format.js';
 import { FileNotFoundError, getOwnedFile } from '../files/service.js';
 import {
@@ -42,30 +43,6 @@ function renderFileError(response: Response, error: unknown) {
   }
 
   return false;
-}
-
-function sendDownload(response: Response, filePath: string, originalName: string) {
-  return new Promise<void>((resolve, reject) => {
-    response.download(
-      filePath,
-      originalName,
-      {
-        dotfiles: 'deny',
-        headers: {
-          'Cache-Control': 'private, no-store',
-          'X-Content-Type-Options': 'nosniff',
-        },
-      },
-      (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve();
-      },
-    );
-  });
 }
 
 export function createFileRouter({ database, storageDirectory }: FileRouterOptions) {
@@ -118,7 +95,7 @@ export function createFileRouter({ database, storageDirectory }: FileRouterOptio
     try {
       const file = await getOwnedFile(database, getAuthenticatedUserId(request), fileId);
       await getStoredFileStats(storageDirectory, file.storageKey);
-      await sendDownload(
+      await sendFileDownload(
         response,
         resolveStoragePath(storageDirectory, file.storageKey),
         file.originalName,

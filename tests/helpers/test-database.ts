@@ -21,6 +21,18 @@ export interface TestFile {
   folderId: string | null;
 }
 
+export interface TestFolderShare {
+  id: string;
+  tokenHash: string;
+  durationDays: number;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  folderId: string;
+  createdById: string;
+}
+
 export interface TestFolder {
   id: string;
   name: string;
@@ -48,7 +60,7 @@ interface FolderWhere {
 interface FileWhere {
   id: string;
   ownerId: string;
-  folderId?: string | null;
+  folderId?: string | null | { not: null };
 }
 
 interface CreateFileArgs {
@@ -117,14 +129,40 @@ function matchesFolder(folder: TestFolder, where: FolderWhere) {
   return true;
 }
 
+function matchesFile(
+  file: TestFile,
+  where: { id?: string; ownerId: string; folderId?: string | null | { not: null } },
+) {
+  if (where.id !== undefined && file.id !== where.id) {
+    return false;
+  }
+
+  if (file.ownerId !== where.ownerId) {
+    return false;
+  }
+
+  if (where.folderId === undefined) {
+    return true;
+  }
+
+  if (where.folderId !== null && typeof where.folderId === 'object') {
+    return file.folderId !== where.folderId.not;
+  }
+
+  return file.folderId === where.folderId;
+}
+
 export function createTestDatabase(
   initialUsers: TestUser[] = [],
   initialFolders: TestFolder[] = [],
   initialFiles: TestFile[] = [],
+  initialShares: TestFolderShare[] = [],
 ) {
   const users = [...initialUsers];
   const folders = [...initialFolders];
   const files = [...initialFiles];
+  const shares = [...initialShares];
+  let shareCounter = shares.length;
   let folderCounter = 0;
   const findUnique = vi.fn(async ({ where }: FindUniqueArgs) => {
     const user = users.find((candidate) =>
@@ -205,29 +243,94 @@ export function createTestDatabase(
     return file;
   });
   const findFileFirst = vi.fn(async ({ where }: FindFirstFileArgs) => {
-    return (
-      files.find(
-        (file) =>
-          file.id === where.id &&
-          file.ownerId === where.ownerId &&
-          (where.folderId === undefined || file.folderId === where.folderId),
-      ) ?? null
-    );
+    return files.find((file) => matchesFile(file, where)) ?? null;
   });
   const findManyFiles = vi.fn(async ({ where }: FindManyFileArgs) => {
-    const matches = files.filter(
-      (file) =>
-        file.ownerId === where.ownerId &&
-        (where.folderId === undefined || file.folderId === where.folderId),
-    );
+    const matches = files.filter((file) => matchesFile(file, where));
     return where.folderId === undefined && where.ownerId
       ? matches.sort((left, right) => right.uploadedAt.getTime() - left.uploadedAt.getTime())
       : matches;
   });
+  const createFolderShare = vi.fn(
+    async ({
+      data,
+    }: {
+      data: Omit<TestFolderShare, 'id' | 'createdAt' | 'updatedAt' | 'revokedAt'>;
+    }) => {
+      shareCounter += 1;
+      const now = new Date();
+      const share: TestFolderShare = {
+        ...data,
+        id: `share-${shareCounter}`,
+        createdAt: now,
+        updatedAt: now,
+        revokedAt: null,
+      };
+      shares.push(share);
+      return share;
+    },
+  );
+  const findFolderShare = vi.fn(
+    async ({
+      where,
+    }: {
+      where: { tokenHash: string; revokedAt: null; expiresAt: { gt: Date } };
+    }) => {
+      const share = shares.find(
+        (candidate) =>
+          candidate.tokenHash === where.tokenHash &&
+          candidate.revokedAt === null &&
+          candidate.expiresAt > where.expiresAt.gt,
+      );
+      if (!share) {
+        return null;
+      }
+
+      const folder = folders.find((candidate) => candidate.id === share.folderId);
+      return folder ? { ...share, folder } : null;
+    },
+  );
+  const findManyFolderShares = vi.fn(async ({ where }: { where: { createdById: string } }) => {
+    return shares
+      .filter((share) => share.createdById === where.createdById)
+      .map((share) => ({
+        ...share,
+        folder: folders.find((folder) => folder.id === share.folderId),
+      }));
+  });
+  const updateManyFolderShares = vi.fn(
+    async ({
+      where,
+      data,
+    }: {
+      where: { id: string; createdById: string; revokedAt: null };
+      data: { revokedAt: Date };
+    }) => {
+      const share = shares.find(
+        (candidate) =>
+          candidate.id === where.id &&
+          candidate.createdById === where.createdById &&
+          candidate.revokedAt === null,
+      );
+      if (!share) {
+        return { count: 0 };
+      }
+
+      share.revokedAt = data.revokedAt;
+      share.updatedAt = data.revokedAt;
+      return { count: 1 };
+    },
+  );
   const database = {
     user: {
       create: createUser,
       findUnique,
+    },
+    folderShare: {
+      create: createFolderShare,
+      findFirst: findFolderShare,
+      findMany: findManyFolderShares,
+      updateMany: updateManyFolderShares,
     },
     file: {
       create: createFile,
@@ -250,10 +353,12 @@ export function createTestDatabase(
     create: createUser,
     createFile,
     createFolder,
+    createFolderShare,
     database,
     deleteManyFolders,
     findUnique,
     files,
     folders,
+    shares,
   };
 }

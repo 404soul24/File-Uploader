@@ -4,6 +4,7 @@
     <div class="flex min-w-0 items-center gap-2 sm:gap-4">
       <% if (currentUser) { %>
         <a class="hidden rounded-md px-3 py-2 text-sm font-medium hover:bg-zinc-100 active:translate-y-px sm:block dark:hover:bg-zinc-900" href="/folders">Folders</a>
+        <a class="hidden rounded-md px-3 py-2 text-sm font-medium hover:bg-zinc-100 active:translate-y-px sm:block dark:hover:bg-zinc-900" href="/shares">Shares</a>
         <span class="hidden max-w-56 truncate text-sm text-zinc-600 sm:block dark:text-zinc-400"><%= currentUser.email %></span>
         <form action="/auth/logout" method="post">
           <input type="hidden" name="_csrf" value="<%= csrfToken() %>" />

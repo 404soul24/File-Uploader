@@ -14,6 +14,8 @@ import { env } from './config/env.js';
 import { createAuthRouter } from './routes/auth.routes.js';
 import { createFileRouter } from './routes/file.routes.js';
 import { createFolderRouter } from './routes/folder.routes.js';
+import { createPublicShareRouter } from './routes/public-share.routes.js';
+import { createShareRouter } from './routes/share.routes.js';
 import { createUploadRouter } from './routes/upload.routes.js';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -98,6 +100,8 @@ export function createApp(options: AppOptions = {}) {
     }),
   );
   app.use('/files', createFileRouter({ database, storageDirectory: uploadDirectory }));
+  app.use('/shares', createShareRouter({ database }));
+  app.use('/share', createPublicShareRouter({ database, storageDirectory: uploadDirectory }));
 
   app.get('/', (request, response) => {
     response.render('home', { title: 'File Uploader' });
