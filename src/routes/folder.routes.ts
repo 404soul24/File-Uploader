@@ -1,7 +1,9 @@
 import type { PrismaClient } from '@prisma/client';
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { csrfSynchronisedProtection } from '../auth/csrf.js';
-import { requireAuthentication } from '../auth/middleware.js';
+import { getAuthenticatedUserId, requireAuthentication } from '../auth/middleware.js';
+import { formatBytes } from '../files/format.js';
+import { listFolderFiles } from '../files/service.js';
 import {
   createFolder,
   deleteFolderRecursively,
@@ -56,14 +58,6 @@ function parseFolderId(value: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
-function getOwnerId(request: Request) {
-  if (!request.isAuthenticated() || !request.user) {
-    throw new Error('Authenticated folder routes require a user.');
-  }
-
-  return request.user.id;
-}
-
 export function createFolderRouter({ database }: FolderRouterOptions) {
   const router = Router();
 
@@ -73,18 +67,22 @@ export function createFolderRouter({ database }: FolderRouterOptions) {
     const folder = folderId ? await getOwnedFolder(database, ownerId, folderId) : null;
     const breadcrumbs = folder ? await getFolderBreadcrumbs(database, ownerId, folder) : [];
     const childFolders = await listChildFolders(database, ownerId, folder?.id ?? null);
+    const files = (await listFolderFiles(database, ownerId, folder?.id ?? null)).map((file) => ({
+      ...file,
+      sizeLabel: formatBytes(file.byteSize),
+    }));
 
     response.render('folders/browse', {
       title: folder ? folder.name : 'Your folders',
       folder,
       breadcrumbs,
       childFolders,
-      files: [],
+      files,
     });
   };
 
   router.get('/', async (request, response) => {
-    await renderBrowsePage(response, getOwnerId(request), null);
+    await renderBrowsePage(response, getAuthenticatedUserId(request), null);
   });
 
   router.post('/', csrfSynchronisedProtection, async (request, response) => {
@@ -101,7 +99,7 @@ export function createFolderRouter({ database }: FolderRouterOptions) {
     try {
       const folder = await createFolder(
         database,
-        getOwnerId(request),
+        getAuthenticatedUserId(request),
         parsed.data.name,
         parsed.data.parentId,
       );
@@ -125,7 +123,7 @@ export function createFolderRouter({ database }: FolderRouterOptions) {
     }
 
     try {
-      await renderBrowsePage(response, getOwnerId(request), folderId);
+      await renderBrowsePage(response, getAuthenticatedUserId(request), folderId);
     } catch (error) {
       if (!renderFolderError(response, error)) {
         throw error;
@@ -156,7 +154,7 @@ export function createFolderRouter({ database }: FolderRouterOptions) {
     }
 
     try {
-      await renameFolder(database, getOwnerId(request), folderId, parsed.data.name);
+      await renameFolder(database, getAuthenticatedUserId(request), folderId, parsed.data.name);
       response.redirect(303, `/folders/${encodeURIComponent(folderId)}`);
     } catch (error) {
       if (!renderFolderError(response, error)) {
@@ -177,7 +175,11 @@ export function createFolderRouter({ database }: FolderRouterOptions) {
     }
 
     try {
-      const preview = await getFolderDeletePreview(database, getOwnerId(request), folderId);
+      const preview = await getFolderDeletePreview(
+        database,
+        getAuthenticatedUserId(request),
+        folderId,
+      );
       response.render('folders/confirm-delete', {
         title: `Delete ${preview.folder.name}`,
         folder: preview.folder,
@@ -202,7 +204,7 @@ export function createFolderRouter({ database }: FolderRouterOptions) {
     }
 
     try {
-      await deleteFolderRecursively(database, getOwnerId(request), folderId);
+      await deleteFolderRecursively(database, getAuthenticatedUserId(request), folderId);
       response.redirect(303, '/folders');
     } catch (error) {
       if (!renderFolderError(response, error)) {

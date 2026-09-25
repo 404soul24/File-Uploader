@@ -9,6 +9,18 @@ export interface TestUser {
   updatedAt: Date;
 }
 
+export interface TestFile {
+  id: string;
+  originalName: string;
+  storageKey: string;
+  downloadUrl: string;
+  mimeType: string;
+  byteSize: bigint;
+  uploadedAt: Date;
+  ownerId: string;
+  folderId: string | null;
+}
+
 export interface TestFolder {
   id: string;
   name: string;
@@ -31,6 +43,21 @@ interface FolderWhere {
   id?: string;
   parentId?: string | null | { in: string[] };
   name?: { equals: string; mode?: 'insensitive' };
+}
+
+interface FileWhere {
+  id: string;
+  ownerId: string;
+  folderId?: string | null;
+}
+
+interface FindFirstFileArgs {
+  where: FileWhere;
+}
+
+interface FindManyFileArgs {
+  where: Omit<FileWhere, 'id'>;
+  orderBy?: { uploadedAt?: 'desc' };
 }
 
 interface FindManyFolderArgs {
@@ -80,9 +107,11 @@ function matchesFolder(folder: TestFolder, where: FolderWhere) {
 export function createTestDatabase(
   initialUsers: TestUser[] = [],
   initialFolders: TestFolder[] = [],
+  initialFiles: TestFile[] = [],
 ) {
   const users = [...initialUsers];
   const folders = [...initialFolders];
+  const files = [...initialFiles];
   let folderCounter = 0;
   const findUnique = vi.fn(async ({ where }: FindUniqueArgs) => {
     const user = users.find((candidate) =>
@@ -147,10 +176,34 @@ export function createTestDatabase(
       return { count };
     },
   );
+  const findFileFirst = vi.fn(async ({ where }: FindFirstFileArgs) => {
+    return (
+      files.find(
+        (file) =>
+          file.id === where.id &&
+          file.ownerId === where.ownerId &&
+          (where.folderId === undefined || file.folderId === where.folderId),
+      ) ?? null
+    );
+  });
+  const findManyFiles = vi.fn(async ({ where }: FindManyFileArgs) => {
+    const matches = files.filter(
+      (file) =>
+        file.ownerId === where.ownerId &&
+        (where.folderId === undefined || file.folderId === where.folderId),
+    );
+    return where.folderId === undefined && where.ownerId
+      ? matches.sort((left, right) => right.uploadedAt.getTime() - left.uploadedAt.getTime())
+      : matches;
+  });
   const database = {
     user: {
       create: createUser,
       findUnique,
+    },
+    file: {
+      findFirst: findFileFirst,
+      findMany: findManyFiles,
     },
     folder: {
       create: createFolder,
@@ -170,6 +223,7 @@ export function createTestDatabase(
     database,
     deleteManyFolders,
     findUnique,
+    files,
     folders,
   };
 }

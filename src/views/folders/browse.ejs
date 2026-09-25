@@ -64,10 +64,24 @@
           </section>
           <section aria-labelledby="files-heading">
             <h2 class="text-lg font-semibold" id="files-heading">Files</h2>
-            <div class="mt-4 rounded-lg border border-dashed border-zinc-300 p-8 text-center dark:border-zinc-700">
-              <h3 class="font-medium">No files yet</h3>
-              <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Uploads will appear here once enabled.</p>
-            </div>
+            <% if (files.length > 0) { %>
+              <ul class="mt-4 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+                <% for (const file of files) { %>
+                  <li class="flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap">
+                    <div class="min-w-0 flex-1">
+                      <a class="block truncate font-medium hover:underline" href="/files/<%= encodeURIComponent(file.id) %>"><%= file.originalName %></a>
+                      <p class="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400"><%= file.mimeType %> · <%= file.sizeLabel %> · <time datetime="<%= file.uploadedAt.toISOString() %>"><%= file.uploadedAt.toLocaleString() %></time></p>
+                    </div>
+                    <a class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 active:translate-y-px dark:border-zinc-700 dark:hover:bg-zinc-800" href="<%= file.downloadUrl %>" download>Download</a>
+                  </li>
+                <% } %>
+              </ul>
+            <% } else { %>
+              <div class="mt-4 rounded-lg border border-dashed border-zinc-300 p-8 text-center dark:border-zinc-700">
+                <h3 class="font-medium">No files yet</h3>
+                <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Uploads will appear here once enabled.</p>
+              </div>
+            <% } %>
           </section>
         </div>
         <aside class="h-fit rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">

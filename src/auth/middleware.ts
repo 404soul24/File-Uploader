@@ -1,5 +1,13 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
+export function getAuthenticatedUserId(request: Request) {
+  if (!request.isAuthenticated() || !request.user) {
+    throw new Error('Authenticated routes require a user.');
+  }
+
+  return request.user.id;
+}
+
 export function loadCurrentUser(request: Request, response: Response, next: NextFunction) {
   if (request.isAuthenticated() && typeof request.user === 'object' && request.user !== null) {
     const user = request.user as { id: string; email: string };
